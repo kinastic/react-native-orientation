@@ -12,9 +12,6 @@ import java.util.List;
 
 public class OrientationPackage implements ReactPackage {
 
-    public OrientationPackage() {
-    }
-
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
         return Arrays.<NativeModule>asList(
@@ -29,7 +26,7 @@ public class OrientationPackage implements ReactPackage {
 
     @Override
     public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
-        return Arrays.asList();
+        return Collections.emptyList();
     }
 }
 

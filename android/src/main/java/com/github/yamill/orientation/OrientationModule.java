@@ -11,8 +11,8 @@ import android.util.Log;
 
 import com.facebook.common.logging.FLog;
 import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -25,31 +25,33 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
-public class OrientationModule extends ReactContextBaseJavaModule implements LifecycleEventListener{
-    final BroadcastReceiver receiver;
+public class OrientationModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
+
+    private final BroadcastReceiver receiver;
 
     public OrientationModule(ReactApplicationContext reactContext) {
         super(reactContext);
-        final ReactApplicationContext ctx = reactContext;
 
         receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                Configuration newConfig = intent.getParcelableExtra("newConfig");
+                final Configuration newConfig = intent.getParcelableExtra("newConfig");
                 Log.d("receiver", String.valueOf(newConfig.orientation));
 
-                String orientationValue = newConfig.orientation == 1 ? "PORTRAIT" : "LANDSCAPE";
+                final String orientationValue = newConfig.orientation == 1 ? "PORTRAIT" : "LANDSCAPE";
 
-                WritableMap params = Arguments.createMap();
+                final WritableMap params = Arguments.createMap();
                 params.putString("orientation", orientationValue);
-                if (ctx.hasActiveCatalystInstance()) {
-                    ctx
-                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                    .emit("orientationDidChange", params);
+
+                final ReactApplicationContext reactApplicationContext = getReactApplicationContext();
+                if (reactApplicationContext.hasActiveCatalystInstance()) {
+                    reactApplicationContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                            .emit("orientationDidChange", params);
                 }
             }
         };
-        ctx.addLifecycleEventListener(this);
+
+        reactContext.addLifecycleEventListener(this);
     }
 
     @Override
@@ -58,119 +60,101 @@ public class OrientationModule extends ReactContextBaseJavaModule implements Lif
     }
 
     @ReactMethod
-    public void getOrientation(Callback callback) {
+    public void getOrientation(Promise promise) {
         final int orientationInt = getReactApplicationContext().getResources().getConfiguration().orientation;
+        final String orientation = this.getOrientationString(orientationInt);
 
-        String orientation = this.getOrientationString(orientationInt);
-
-        if (orientation == "null") {
-            callback.invoke(orientationInt, null);
-        } else {
-            callback.invoke(null, orientation);
-        }
+        promise.resolve(orientation);
     }
 
     @ReactMethod
     public void lockToPortrait() {
-        final Activity activity = getCurrentActivity();
-        if (activity == null) {
-            return;
-        }
-        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        setRequestedOrientation(getCurrentActivity(), ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
     @ReactMethod
     public void lockToLandscape() {
-        final Activity activity = getCurrentActivity();
-        if (activity == null) {
-            return;
-        }
-        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        setRequestedOrientation(getCurrentActivity(), ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
     }
 
     @ReactMethod
     public void lockToLandscapeLeft() {
-        final Activity activity = getCurrentActivity();
-        if (activity == null) {
-            return;
-        }
-        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        setRequestedOrientation(getCurrentActivity(), ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
     }
 
     @ReactMethod
     public void lockToLandscapeRight() {
-        final Activity activity = getCurrentActivity();
-        if (activity == null) {
-            return;
-        }
-        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+        setRequestedOrientation(getCurrentActivity(), ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
     }
 
     @ReactMethod
     public void unlockAllOrientations() {
-        final Activity activity = getCurrentActivity();
-        if (activity == null) {
-            return;
+        setRequestedOrientation(getCurrentActivity(), ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+    }
+
+    private void setRequestedOrientation(Activity activity, int orientation) {
+        if(null != activity) {
+            activity.setRequestedOrientation(orientation);
         }
-        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
     }
 
     @Override
     public @Nullable Map<String, Object> getConstants() {
-        HashMap<String, Object> constants = new HashMap<String, Object>();
-        int orientationInt = getReactApplicationContext().getResources().getConfiguration().orientation;
+        final Map<String, Object> constants = new HashMap<String, Object>();
+        final int orientationInt = getReactApplicationContext().getResources().getConfiguration().orientation;
 
-        String orientation = this.getOrientationString(orientationInt);
-        if (orientation == "null") {
-            constants.put("initialOrientation", null);
-        } else {
-            constants.put("initialOrientation", orientation);
-        }
+        final String orientation = this.getOrientationString(orientationInt);
+        constants.put("initialOrientation", orientation);
 
         return constants;
     }
 
     private String getOrientationString(int orientation) {
-        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            return "LANDSCAPE";
-        } else if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-            return "PORTRAIT";
-        } else if (orientation == Configuration.ORIENTATION_UNDEFINED) {
-            return "UNKNOWN";
-        } else {
-            return "null";
+        switch(orientation) {
+            case Configuration.ORIENTATION_LANDSCAPE: return "LANDSCAPE";
+            case Configuration.ORIENTATION_PORTRAIT: return "PORTRAIT";
+            case Configuration.ORIENTATION_UNDEFINED:
+            default:
+                return "UNKNOWN";
         }
     }
 
     @Override
     public void onHostResume() {
         final Activity activity = getCurrentActivity();
-
-        assert activity != null;
-        activity.registerReceiver(receiver, new IntentFilter("onConfigurationChanged"));
+        if(null != activity) {
+            activity.registerReceiver(receiver, new IntentFilter("onConfigurationChanged"));
+        } else {
+            FLog.e(ReactConstants.TAG, "onHostResume activity was NULL");
+        }
     }
+
     @Override
     public void onHostPause() {
         final Activity activity = getCurrentActivity();
-        if (activity == null) return;
-        try
-        {
-            activity.unregisterReceiver(receiver);
-        }
-        catch (java.lang.IllegalArgumentException e) {
-            FLog.e(ReactConstants.TAG, "receiver already unregistered", e);
+        if (null != activity) {
+            try {
+                activity.unregisterReceiver(receiver);
+            }
+            catch (IllegalArgumentException e) {
+                FLog.e(ReactConstants.TAG, "receiver already unregistered", e);
+            }
+        } else {
+            FLog.e(ReactConstants.TAG, "onHostPause activity was NULL");
         }
     }
 
     @Override
     public void onHostDestroy() {
         final Activity activity = getCurrentActivity();
-        if (activity == null) return;
-        try
-        {
-            activity.unregisterReceiver(receiver);
+        if (null != activity) {
+            try {
+                activity.unregisterReceiver(receiver);
+            } catch (IllegalArgumentException e) {
+                FLog.e(ReactConstants.TAG, "receiver already unregistered", e);
+            }
+        } else {
+            FLog.e(ReactConstants.TAG, "onHostDestroy activity was NULL");
         }
-        catch (java.lang.IllegalArgumentException e) {
-            FLog.e(ReactConstants.TAG, "receiver already unregistered", e);
-        }}
     }
+}
