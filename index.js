@@ -21,15 +21,8 @@ function getKey(listener){
 };
 
 module.exports = {
-  getOrientation(cb) {
-    Orientation.getOrientation((error,orientation) =>{
-      cb(error, orientation);
-    });
-  },
-  getSpecificOrientation(cb) {
-    Orientation.getSpecificOrientation((error,orientation) =>{
-      cb(error, orientation);
-    });
+  getOrientation() {
+    return Orientation.getOrientation();
   },
   lockToPortrait() {
     Orientation.lockToPortrait();
